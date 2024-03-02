@@ -128,6 +128,9 @@ class ModbusRTU
   
   def every_250ms()
     self.receive()
+    for i: self.devices
+      i.every_250ms()
+    end
   end
 
 end
@@ -150,6 +153,8 @@ class MODBusDevice
     debug("attached_to_bus_event not implemented yet")
   end
 
+  def every_250ms()
+  end
 
 end
 
@@ -158,10 +163,12 @@ class RTU23IOXXX: MODBusDevice
   var pid
   var io_count
   var inputs_state
+  var interlock_input_output
 
   def init(slave_id)
     super(self).init(slave_id)
     self.inputs_state=bytes("00000000")
+    self.interlock_input_output=1
   end
 
   def attached_to_bus_event()
@@ -200,9 +207,20 @@ class RTU23IOXXX: MODBusDevice
         end
         for bidx: 0..7
           if (data[offset] & 0x01 << bidx) != (self.inputs_state[offset] & 0x01 << bidx)
-            print("change input " + str((i*8)+(bidx + 1)))
+            print("toggle input " + str((i*8)+(bidx + 1)))
           end
         end
+        if self.interlock_input_output
+          if i == 0
+            self.send("06","0070", str(data[offset]) +"00")
+          end
+          if i == 1
+            self.send("06","0070", "00" + str(data[offset]))
+          end
+
+            
+        end
+
     end
     self.inputs_state=data
   end
@@ -217,13 +235,15 @@ class RTU23IOXXX: MODBusDevice
     self.poll_all_inputs()
   end
 
+
+
 end
 
 bus=ModbusRTU(16, 13, 9600, serial.SERIAL_8N1)
 dev1=RTU23IOXXX(1)
 bus.add_device(dev1)
 tasmota.add_driver(bus)
-tasmota.add_driver(dev1)
+
 
 
 # bus.receive()
